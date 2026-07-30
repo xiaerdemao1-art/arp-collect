@@ -95,6 +95,7 @@ Open `http://localhost:19527` and log in with the `server.web_auth` credentials.
 
 See [`config/config.example.yaml`](config/config.example.yaml) — every option is commented in both English and Chinese. Highlights:
 
+- `device_source` - device inventory source: `netbox` (default) or `file` (local yaml/csv list, no NetBox needed; see `config/devices.example.yaml`)
 - `proxy_mappings` — ordered rules mapping NetBox site/region/role → collector name (`first match wins`), with `default_proxy` as fallback
 - `server.allowed_proxies` — optional collector allowlist with IP pinning (Zabbix-style)
 - `collector.slow_devices` — per-device collection intervals for large ARP tables
@@ -105,7 +106,12 @@ Any key can also be overridden with an `ARP_`-prefixed environment variable (e.g
 
 ## Distributed Deployment
 
-See [docs/deployment.md](docs/deployment.md) ([中文](docs/deployment.zh-CN.md)). In short:
+See [docs/deployment.md](docs/deployment.md) ([中文](docs/deployment.zh-CN.md)). The fastest path is the one-command installer:
+
+    sudo ./deploy/install.sh server      # on the server node
+    sudo ./deploy/install.sh collector --proxy <name> --server-url http://<server>:19527
+
+In short:
 
 1. Run `arp_server` on a central node (with PostgreSQL reachable).
 2. On each collection node: copy the static binary + config, `systemctl enable --now arp-collector`.
@@ -149,6 +155,7 @@ Useful queries (IP conflicts, drift tracking, multi-gateway detection) are docum
 - SNMPv2c only (no SNMPv3 yet)
 - HTTP-only server API (terminate TLS at a reverse proxy if exposed beyond a trusted network)
 - Kafka TLS uses `InsecureSkipVerify` (verification toggle planned)
+- Web host management UI (manual add/edit + CSV batch import, Zabbix-style) - planned
 - Test coverage is minimal (smoke tests only) — contributions welcome
 
 ## Contributing

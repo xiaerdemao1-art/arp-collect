@@ -10,6 +10,7 @@ require (
 	github.com/segmentio/kafka-go v0.4.50
 	github.com/spf13/viper v1.18.2
 	go.uber.org/zap v1.26.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -37,5 +38,4 @@ require (
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

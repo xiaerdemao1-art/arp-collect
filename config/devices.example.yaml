@@ -1,0 +1,31 @@
+# 设备清单示例（YAML 格式）/ Device inventory example (YAML)
+#
+# 当 config.yaml 里 device_source.type=file 且 path 指向本文件时使用。
+# 字段说明：
+#   name           设备名（必填）
+#   ip             管理 IP（必填，SNMP 采集目标）
+#   role           设备角色（可选，仅用于展示/标签）
+#   site           站点名（可选，用于 proxy_mappings 自动分配）
+#   region         区域名（可选，映射到 Region Level2，用于自动分配）
+#   proxy          指定采集节点（可选，留空则按 proxy_mappings 自动分配）
+#   snmp_community 覆盖默认 SNMP community（可选，留空用 snmp.community）
+
+devices:
+  - name: core-sw-01
+    ip: 192.0.2.1
+    role: CoreSwitch
+    site: DC-East
+    region: Region-East
+    # proxy: ""              # 留空 -> 自动分配
+    # snmp_community: ""
+
+  - name: core-sw-02
+    ip: 192.0.2.2
+    role: CoreSwitch
+    proxy: proxy2           # 显式指定采集节点
+
+  - name: dist-sw-01
+    ip: 192.0.2.3
+    role: DistributionSwitch
+    site: DC-West
+    region: Region-West

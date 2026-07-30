@@ -92,6 +92,7 @@ export ARP_SNMP_COMMUNITY=你的SNMP社区名
 
 见 [`config/config.example.yaml`](config/config.example.yaml)，每个选项都有中英双语注释。重点：
 
+- `device_source` - device inventory source: `netbox` (default) or `file` (local yaml/csv list, no NetBox needed; see `config/devices.example.yaml`)
 - `proxy_mappings` —— 有序规则，把 NetBox 站点/区域/角色映射到采集器（**先匹配先生效**），`default_proxy` 兜底
 - `server.allowed_proxies` —— 可选的采集器白名单，支持绑定 IP（类似 Zabbix）
 - `collector.slow_devices` —— 大 ARP 表设备的独立采集周期
@@ -102,7 +103,12 @@ export ARP_SNMP_COMMUNITY=你的SNMP社区名
 
 ## 分布式部署
 
-见 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)（[English](docs/deployment.md)）。简要步骤：
+见 [docs/deployment.zh-CN.md](docs/deployment.zh-CN.md)（[English](docs/deployment.md)）。最快的方式是用一键安装脚本：
+
+    sudo ./deploy/install.sh server      # 在 server 节点
+    sudo ./deploy/install.sh collector --proxy <名称> --server-url http://<server>:19527
+
+简要步骤：
 
 1. 在中心节点运行 `arp_server`（需能访问 PostgreSQL）。
 2. 在每个采集节点：拷贝静态二进制 + 配置，`systemctl enable --now arp-collector`。
@@ -146,6 +152,7 @@ cd web && npm ci && npm run build   # 输出到 internal/server/web/dist
 - 仅支持 SNMPv2c（暂不支持 SNMPv3）
 - Server API 仅 HTTP（如需暴露到可信网络之外，请用反向代理终止 TLS）
 - Kafka TLS 目前 `InsecureSkipVerify`（证书校验开关计划中）
+- Web 主机管理界面（手动增删改 + CSV 批量导入，类似 Zabbix）-- 计划中
 - 测试覆盖较少（仅冒烟测试）—— 欢迎贡献
 
 ## 贡献

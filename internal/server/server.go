@@ -17,7 +17,7 @@ import (
 	"github.com/xiaerdemao1-art/arp-collect/internal/kafka"
 	"github.com/xiaerdemao1-art/arp-collect/internal/metrics"
 	"github.com/xiaerdemao1-art/arp-collect/internal/model"
-	"github.com/xiaerdemao1-art/arp-collect/internal/netbox"
+	"github.com/xiaerdemao1-art/arp-collect/internal/source"
 	"github.com/xiaerdemao1-art/arp-collect/internal/storage"
 
 	"go.uber.org/zap"
@@ -30,7 +30,7 @@ var webFS embed.FS
 type Server struct {
 	cfg           *config.Config
 	logger        *zap.Logger
-	netboxClient  *netbox.Client
+	deviceSource  source.DeviceSource
 	pgStore       *storage.PostgresStore
 	kafkaProducer *kafka.Producer
 
@@ -52,8 +52,12 @@ func NewServer(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		logger: logger,
 	}
 
-	// 初始化 NetBox 客户端
-	s.netboxClient = netbox.NewClient(cfg, logger)
+	// 初始化设备源（netbox 或文件）
+	ds, err := source.New(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("初始化设备源失败: %w", err)
+	}
+	s.deviceSource = ds
 
 	// 初始化 PostgreSQL
 	pgStore, err := storage.NewPostgresStore(&cfg.Postgres, logger)
@@ -138,7 +142,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 // refreshDevices 刷新设备列表
 func (s *Server) refreshDevices(ctx context.Context) error {
-	devices, err := s.netboxClient.FetchDevices(ctx, s.cfg.NetBox.Roles)
+	devices, err := s.deviceSource.FetchDevices(ctx, s.cfg.NetBox.Roles)
 	if err != nil {
 		return err
 	}

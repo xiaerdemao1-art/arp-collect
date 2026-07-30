@@ -22,7 +22,7 @@ var (
 
 // 版本信息（由 Makefile 通过 -ldflags -X 注入）
 var (
-	version   = "0.0.1"
+	version   = "0.0.2"
 	buildTime = "unknown"
 	gitCommit = "unknown"
 )

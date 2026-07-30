@@ -14,6 +14,15 @@
 #   ARP_POSTGRES_PASSWORD=xxx ARP_SERVER_AUTHTOKEN=yyy
 # =============================================================================
 
+# 设备清单来源 / Device inventory source
+# type: netbox  - 从 NetBox API 拉取设备（需配置下方 netbox 段）
+# type: file    - 从本地 yaml/csv 文件读取设备（无需 NetBox，见 config/devices.example.yaml）
+device_source:
+  type: netbox
+  # file:                                   # type=file 时启用
+  #   path: "/etc/arp-collect/devices.yaml" # .yaml/.yml 或 .csv
+  #   format: ""                            # yaml | csv，空=按扩展名推断
+
 netbox:
   url: "http://192.0.2.10:8000"      # NetBox API 地址 / NetBox API URL
   token: "${ARP_NETBOX_TOKEN}"       # NetBox API Token

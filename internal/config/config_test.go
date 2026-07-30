@@ -51,6 +51,26 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("file source skips netbox token requirement", func(t *testing.T) {
+		c := base()
+		c.DeviceSource.Type = "file"
+		c.DeviceSource.File.Path = "/etc/arp-collect/devices.yaml"
+		c.NetBox.Token = "" // 文件源不需要 NetBox 凭据
+		c.NetBox.URL = ""
+		if err := c.Validate(); err != nil {
+			t.Fatalf("file source should not require netbox creds, got %v", err)
+		}
+	})
+
+	t.Run("file source requires file path", func(t *testing.T) {
+		c := base()
+		c.DeviceSource.Type = "file"
+		c.DeviceSource.File.Path = ""
+		if err := c.Validate(); err == nil {
+			t.Fatal("expected error for missing file path")
+		}
+	})
+
 	t.Run("collector ok", func(t *testing.T) {
 		c := base()
 		c.Server.Mode = "collector"

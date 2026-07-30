@@ -13,8 +13,8 @@ import (
 	"github.com/xiaerdemao1-art/arp-collect/internal/collector"
 	"github.com/xiaerdemao1-art/arp-collect/internal/config"
 	"github.com/xiaerdemao1-art/arp-collect/internal/model"
-	"github.com/xiaerdemao1-art/arp-collect/internal/netbox"
 	"github.com/xiaerdemao1-art/arp-collect/internal/snmp"
+	"github.com/xiaerdemao1-art/arp-collect/internal/source"
 	"github.com/xiaerdemao1-art/arp-collect/internal/storage"
 
 	"go.uber.org/zap"
@@ -33,7 +33,7 @@ var (
 
 // 版本信息（由 Makefile 通过 -ldflags -X 注入）
 var (
-	version   = "0.0.1"
+	version   = "0.0.2"
 	buildTime = "unknown"
 	gitCommit = "unknown"
 )
@@ -128,8 +128,11 @@ func runDistributedCollector(ctx context.Context, cfg *config.Config, logger *za
 func runStandaloneCollector(ctx context.Context, cfg *config.Config, logger *zap.Logger, singleDevice string) {
 	logger.Info("进入单机模式")
 
-	// 初始化组件
-	netboxClient := netbox.NewClient(cfg, logger)
+	// 初始化设备源（netbox 或文件）和 SNMP 采集器
+	deviceSource, err := source.New(cfg, logger)
+	if err != nil {
+		logger.Fatal("初始化设备源失败", zap.Error(err))
+	}
 	snmpCollector := snmp.NewCollector(&cfg.SNMP, logger)
 
 	pgStore, err := storage.NewPostgresStore(&cfg.Postgres, logger)
@@ -139,18 +142,18 @@ func runStandaloneCollector(ctx context.Context, cfg *config.Config, logger *zap
 	defer pgStore.Close()
 
 	// 获取设备列表
-	if _, err := netboxClient.FetchDevices(ctx, cfg.NetBox.Roles); err != nil {
+	if _, err := deviceSource.FetchDevices(ctx, cfg.NetBox.Roles); err != nil {
 		logger.Fatal("获取设备列表失败", zap.Error(err))
 	}
 
 	// 单设备模式
 	if singleDevice != "" {
-		runSingleDeviceMode(ctx, logger, netboxClient, snmpCollector, pgStore, singleDevice)
+		runSingleDeviceMode(ctx, logger, deviceSource, snmpCollector, pgStore, singleDevice)
 		return
 	}
 
 	// 获取本节点设备
-	devices := netboxClient.GetDevicesForProxy(cfg.Collector.ProxyName)
+	devices := deviceSource.GetDevicesForProxy(cfg.Collector.ProxyName)
 	if len(devices) == 0 {
 		logger.Warn("当前节点没有分配的设备")
 		return
@@ -163,17 +166,17 @@ func runStandaloneCollector(ctx context.Context, cfg *config.Config, logger *zap
 	}
 
 	// 守护进程模式
-	runDaemonMode(ctx, logger, cfg, netboxClient, snmpCollector, pgStore)
+	runDaemonMode(ctx, logger, cfg, deviceSource, snmpCollector, pgStore)
 }
 
 // runSingleDeviceMode 单设备采集模式
 func runSingleDeviceMode(ctx context.Context, logger *zap.Logger,
-	netboxClient *netbox.Client, snmpCollector *snmp.Collector,
+	deviceSource source.DeviceSource, snmpCollector *snmp.Collector,
 	store *storage.PostgresStore, target string) {
 
 	logger.Info("单设备采集模式", zap.String("target", target))
 
-	devices := netboxClient.GetCachedDevices()
+	devices := deviceSource.GetCachedDevices()
 	var targetDevice *model.Device
 	for i := range devices {
 		if devices[i].PrimaryIP == target || devices[i].Name == target {
@@ -247,7 +250,7 @@ var slowDeviceTracker *collector.SlowDeviceTracker
 
 // runDaemonMode 守护进程模式
 func runDaemonMode(ctx context.Context, logger *zap.Logger, cfg *config.Config,
-	netboxClient *netbox.Client, snmpCollector *snmp.Collector, store *storage.PostgresStore) {
+	deviceSource source.DeviceSource, snmpCollector *snmp.Collector, store *storage.PostgresStore) {
 
 	logger.Info("进入守护进程模式",
 		zap.Duration("collect_interval", cfg.Collector.Interval),
@@ -272,16 +275,16 @@ func runDaemonMode(ctx context.Context, logger *zap.Logger, cfg *config.Config,
 	defer refreshTicker.Stop()
 
 	// 立即执行一次
-	doStandaloneCollect(ctx, logger, cfg, netboxClient, snmpCollector, store, slowDeviceMap)
+	doStandaloneCollect(ctx, logger, cfg, deviceSource, snmpCollector, store, slowDeviceMap)
 
 	for {
 		select {
 		case <-collectTicker.C:
-			doStandaloneCollect(ctx, logger, cfg, netboxClient, snmpCollector, store, slowDeviceMap)
+			doStandaloneCollect(ctx, logger, cfg, deviceSource, snmpCollector, store, slowDeviceMap)
 
 		case <-refreshTicker.C:
 			logger.Info("刷新设备列表")
-			if _, err := netboxClient.FetchDevices(ctx, cfg.NetBox.Roles); err != nil {
+			if _, err := deviceSource.FetchDevices(ctx, cfg.NetBox.Roles); err != nil {
 				logger.Error("刷新设备列表失败", zap.Error(err))
 			}
 
@@ -293,11 +296,11 @@ func runDaemonMode(ctx context.Context, logger *zap.Logger, cfg *config.Config,
 
 // doStandaloneCollect 执行一次单机采集
 func doStandaloneCollect(ctx context.Context, logger *zap.Logger, cfg *config.Config,
-	netboxClient *netbox.Client, snmpCollector *snmp.Collector, store *storage.PostgresStore,
+	deviceSource source.DeviceSource, snmpCollector *snmp.Collector, store *storage.PostgresStore,
 	slowDeviceMap map[string]int64) {
 
 	start := time.Now()
-	devices := netboxClient.GetDevicesForProxy(cfg.Collector.ProxyName)
+	devices := deviceSource.GetDevicesForProxy(cfg.Collector.ProxyName)
 
 	// 为设备填充自定义采集间隔
 	for i := range devices {

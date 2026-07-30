@@ -1,0 +1,4 @@
+name,ip,role,site,region,proxy,snmp_community
+core-sw-01,192.0.2.1,CoreSwitch,DC-East,Region-East,,
+core-sw-02,192.0.2.2,CoreSwitch,,,proxy2,
+dist-sw-01,192.0.2.3,DistributionSwitch,DC-West,Region-West,,,

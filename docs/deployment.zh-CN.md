@@ -2,7 +2,7 @@
 
 [English](deployment.md)
 
-本指南把 arp-collect 部署为一个中心 **server** 加若干 **collector** 采集节点，示例均基于 Linux + systemd。
+本指南把 arp-collect 部署为一个中心 **server** 加若干 **collector** 采集节点，示例均基于 Linux + systemd。[`deploy/install.sh`](../deploy/install.sh) 安装脚本用一条命令完成建用户、建目录、systemd unit、配置模板等重复工作。
 
 ```
                  ┌──────────────────────────────┐
@@ -30,35 +30,24 @@ make build-static   # 产出 bin/arp_server 和 bin/arp_collector（linux/amd64�
 ## 2. Server 节点
 
 ```bash
-sudo useradd -r -s /sbin/nologin arp || true
-sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
-sudo cp bin/arp_server /opt/arp-collect/bin/
+sudo ./deploy/install.sh server
+```
 
-# 配置
-sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
-sudoedit /opt/arp-collect/config/config.yaml
-#   - server.mode: "server"
-#   - netbox / postgres / snmp 相关配置
+这一条命令会：建 `arp` 用户、铺好 `/opt/arp-collect/`、拷贝二进制 + 配置模板、写 `/etc/arp-collect/env`、装 `arp-server` systemd unit 并启动。
+
+然后改配置、填秘密、重启：
+
+```bash
+sudo vi /opt/arp-collect/config/config.yaml
+#   - device_source: netbox 或 file（见 README）
+#   - postgres / snmp 配置
 #   - server.auth_token          （Collector API 预共享密钥）
-#   - server.web_auth            （Web UI 登录账号密码）
+#   - server.web_auth            （Web UI 账号密码）
 #   - server.allowed_proxies     （每个采集节点的名称 + IP）
-#   - proxy_mappings + default_proxy（设备 → 采集节点分配规则）
+#   - proxy_mappings + default_proxy
 
-# 秘密建议放环境文件，而不是写进 YAML
-sudo tee /etc/arp-collect/env > /dev/null <<'EOF'
-ARP_NETBOX_TOKEN=改成你的
-ARP_POSTGRES_PASSWORD=改成你的
-ARP_SERVER_AUTHTOKEN=改成你的
-ARP_SERVER_WEBAUTH_PASSWORD=改成你的
-EOF
-sudo chmod 600 /etc/arp-collect/env
-sudo chown -R arp:arp /opt/arp-collect /etc/arp-collect
-
-# systemd
-sudo cp deploy/arp-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now arp-server
-systemctl status arp-server
+sudo vi /etc/arp-collect/env        # 取消注释并填入 ARP_* 秘密变量
+sudo systemctl restart arp-server
 ```
 
 验证：
@@ -73,31 +62,19 @@ curl -u admin http://localhost:19527/   # 交互式输入 web_auth 密码
 在每个采集节点上（需要能 SNMP 访问目标设备、能 HTTP 访问 Server）：
 
 ```bash
-sudo useradd -r -s /sbin/nologin arp || true
-sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
-sudo cp bin/arp_collector /opt/arp-collect/bin/
+sudo ./deploy/install.sh collector --proxy <名称> --server-url http://<server-ip>:19527
+```
 
-sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
-sudoedit /opt/arp-collect/config/config.yaml
-#   - server.mode: "collector"
-#   - collector.proxy_name:  本节点名称（必须与 allowed_proxies 对应）
-#   - collector.server_url:  http://<server-ip>:19527
-#   - snmp 相关配置
+安装脚本会预填 `collector.proxy_name` 和 `collector.server_url`；补全其余配置即可开始采集：
 
-sudo tee /etc/arp-collect/env > /dev/null <<'EOF'
-ARP_SNMP_COMMUNITY=改成你的
-ARP_COLLECTOR_AUTHTOKEN=改成你的   # 必须与 server.auth_token 一致
-EOF
-sudo chmod 600 /etc/arp-collect/env
-sudo chown -R arp:arp /opt/arp-collect /etc/arp-collect
-
-# systemd —— 用模板，替换 PROXY_NAME 和 -server 地址
-sudo cp deploy/arp-collector.service /etc/systemd/system/
-sudoedit /etc/systemd/system/arp-collector.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now arp-collector
+```bash
+sudo vi /opt/arp-collect/config/config.yaml   # 设置 snmp、collector.auth_token
+sudo vi /etc/arp-collect/env                   # ARP_SNMP_COMMUNITY、ARP_COLLECTOR_AUTHTOKEN
+sudo systemctl restart arp-collector
 journalctl -u arp-collector -f
 ```
+
+> `collector.auth_token` 必须与 Server 端 `server.auth_token` 一致。
 
 不装服务先冒烟一次（执行一轮采集后退出）：
 
@@ -122,9 +99,15 @@ SERVER_URL=http://<server-ip>:19527 ./deploy_all_collectors.sh deploy proxy1    
 ./deploy_all_collectors.sh test proxy1
 ```
 
-如果你想自己分发 unit 文件，可以用 `deploy/generate_configs.sh` 按 `proxies.txt` 批量生成 `proxy_configs/<名称>.service`。
+## 5. 卸载
 
-## 5. 运维速查
+```bash
+sudo ./deploy/install.sh uninstall server      # 或：uninstall collector
+```
+
+停止并禁用服务、删 unit、删二进制。配置会备份为 `config.yaml.bak.<时间戳>`，目录保留。彻底清理：`sudo rm -rf /opt/arp-collect && sudo userdel arp`。
+
+## 6. 运维速查
 
 | 操作 | 命令 |
 |---|---|
@@ -134,9 +117,9 @@ SERVER_URL=http://<server-ip>:19527 ./deploy_all_collectors.sh deploy proxy1    
 | 单设备调试 | `arp_collector -mode standalone -device <ip> -config ...` |
 | 健康检查 | `curl http://<server>:19527/health` |
 
-> **注意**：更新二进制版本后必须重启服务——运行中的进程在重启前仍执行旧代码。
+> **注意**：更新二进制版本后必须重启服务--运行中的进程在重启前仍执行旧代码。
 
-## 6. 防火墙 / 端口
+## 7. 防火墙 / 端口
 
 | 源 | 目标 | 端口 | 用途 |
 |---|---|---|---|
@@ -145,3 +128,17 @@ SERVER_URL=http://<server-ip>:19527 ./deploy_all_collectors.sh deploy proxy1    
 | server | NetBox | 443/80 tcp | 设备清单 |
 | server | PostgreSQL | 5432/tcp | 存储 |
 | server | Kafka / VictoriaMetrics | 9092 / 8428 tcp | 可选输出 |
+
+## 8. 手动 / 自定义安装
+
+推荐用 `install.sh`；如需完全掌控（自定义路径、非 systemd init、容器），它本质就是下面这些原语，按需复制即可：
+
+```bash
+sudo useradd -r -s /sbin/nologin arp
+sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
+sudo cp bin/arp_server /opt/arp-collect/bin/
+sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
+# 改配置、写 /etc/arp-collect/env（chmod 600）、装你自己的 unit
+```
+
+二进制会自动从 `./config/`、`/opt/arp-collect/config/`、`/etc/arp-collect/` 查找配置，所以装到这些位置时 `-config` 参数可省。

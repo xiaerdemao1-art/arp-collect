@@ -3,7 +3,9 @@
 [中文](deployment.zh-CN.md)
 
 This guide deploys arp-collect as a central **server** plus one or more
-**collector** agents. All examples use systemd on Linux.
+**collector** agents. All examples use systemd on Linux. The
+[`deploy/install.sh`](../deploy/install.sh) installer handles the repetitive
+setup (user, directories, systemd unit, config template) in one command.
 
 ```
                  ┌──────────────────────────────┐
@@ -31,35 +33,26 @@ make build-static   # produces bin/arp_server and bin/arp_collector (linux/amd64
 ## 2. Server node
 
 ```bash
-sudo useradd -r -s /sbin/nologin arp || true
-sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
-sudo cp bin/arp_server /opt/arp-collect/bin/
+sudo ./deploy/install.sh server
+```
 
-# Config
-sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
-sudoedit /opt/arp-collect/config/config.yaml
-#   - server.mode: "server"
-#   - netbox / postgres / snmp settings
+That single command creates the `arp` user, lays out `/opt/arp-collect/`,
+copies the binary + config template, writes `/etc/arp-collect/env`, installs
+the `arp-server` systemd unit, and starts it.
+
+Then edit the config, set secrets, and restart:
+
+```bash
+sudo vi /opt/arp-collect/config/config.yaml
+#   - device_source: netbox or file (see README)
+#   - postgres / snmp settings
 #   - server.auth_token          (Collector API pre-shared token)
 #   - server.web_auth            (Web UI credentials)
 #   - server.allowed_proxies     (name + IP of every collector node)
 #   - proxy_mappings + default_proxy
 
-# Secrets via environment (recommended): put them in an env file instead of YAML
-sudo tee /etc/arp-collect/env > /dev/null <<'EOF'
-ARP_NETBOX_TOKEN=change-me
-ARP_POSTGRES_PASSWORD=change-me
-ARP_SERVER_AUTHTOKEN=change-me
-ARP_SERVER_WEBAUTH_PASSWORD=change-me
-EOF
-sudo chmod 600 /etc/arp-collect/env
-sudo chown -R arp:arp /opt/arp-collect /etc/arp-collect
-
-# systemd
-sudo cp deploy/arp-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now arp-server
-systemctl status arp-server
+sudo vi /etc/arp-collect/env        # uncomment and fill ARP_* secret vars
+sudo systemctl restart arp-server
 ```
 
 Verify:
@@ -75,31 +68,20 @@ On each collection node (must have SNMP reachability to its devices and HTTP
 reachability to the server):
 
 ```bash
-sudo useradd -r -s /sbin/nologin arp || true
-sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
-sudo cp bin/arp_collector /opt/arp-collect/bin/
+sudo ./deploy/install.sh collector --proxy <name> --server-url http://<server-ip>:19527
+```
 
-sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
-sudoedit /opt/arp-collect/config/config.yaml
-#   - server.mode: "collector"
-#   - collector.proxy_name:  this node's name (must match allowed_proxies)
-#   - collector.server_url:  http://<server-ip>:19527
-#   - snmp settings
+The installer pre-fills `collector.proxy_name` and `collector.server_url` in
+the config; finish the rest and start collecting:
 
-sudo tee /etc/arp-collect/env > /dev/null <<'EOF'
-ARP_SNMP_COMMUNITY=change-me
-ARP_COLLECTOR_AUTHTOKEN=change-me   # must equal server.auth_token
-EOF
-sudo chmod 600 /etc/arp-collect/env
-sudo chown -R arp:arp /opt/arp-collect /etc/arp-collect
-
-# systemd — use the template, replacing PROXY_NAME and the -server URL
-sudo cp deploy/arp-collector.service /etc/systemd/system/
-sudoedit /etc/systemd/system/arp-collector.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now arp-collector
+```bash
+sudo vi /opt/arp-collect/config/config.yaml   # set snmp, collector.auth_token
+sudo vi /etc/arp-collect/env                   # ARP_SNMP_COMMUNITY, ARP_COLLECTOR_AUTHTOKEN
+sudo systemctl restart arp-collector
 journalctl -u arp-collector -f
 ```
+
+> `collector.auth_token` must equal the server's `server.auth_token`.
 
 Smoke test without installing (runs one collection cycle and exits):
 
@@ -125,10 +107,17 @@ SERVER_URL=http://<server-ip>:19527 ./deploy_all_collectors.sh deploy proxy1    
 ./deploy_all_collectors.sh test proxy1
 ```
 
-`deploy/generate_configs.sh` renders one `proxy_configs/<name>.service` per
-entry in `proxies.txt`, if you prefer to distribute unit files yourself.
+## 5. Uninstall
 
-## 5. Operations cheat-sheet
+```bash
+sudo ./deploy/install.sh uninstall server      # or: uninstall collector
+```
+
+Stops/disables the service, removes the unit, and deletes the binary. Your
+config is backed up to `config.yaml.bak.<ts>` and otherwise left in place.
+To remove everything: `sudo rm -rf /opt/arp-collect && sudo userdel arp`.
+
+## 6. Operations cheat-sheet
 
 | Task | Command |
 |---|---|
@@ -138,10 +127,10 @@ entry in `proxies.txt`, if you prefer to distribute unit files yourself.
 | Single-device debug | `arp_collector -mode standalone -device <ip> -config ...` |
 | Health check | `curl http://<server>:19527/health` |
 
-> **Note:** after deploying a new binary version, always restart the service —
+> **Note:** after deploying a new binary version, always restart the service -
 > the running process keeps the old code until restarted.
 
-## 6. Firewall / ports
+## 7. Firewall / ports
 
 | From | To | Port | Purpose |
 |---|---|---|---|
@@ -150,3 +139,19 @@ entry in `proxies.txt`, if you prefer to distribute unit files yourself.
 | server | NetBox | 443/80 tcp | device inventory |
 | server | PostgreSQL | 5432/tcp | storage |
 | server | Kafka / VictoriaMetrics | 9092 / 8428 tcp | optional outputs |
+
+## 8. Manual / custom install
+
+Prefer `install.sh`, but if you need full control (custom paths, non-systemd
+init, containers), it just runs these primitives - replicate as needed:
+
+```bash
+sudo useradd -r -s /sbin/nologin arp
+sudo mkdir -p /opt/arp-collect/bin /opt/arp-collect/config /etc/arp-collect
+sudo cp bin/arp_server /opt/arp-collect/bin/
+sudo cp config/config.example.yaml /opt/arp-collect/config/config.yaml
+# edit config, write /etc/arp-collect/env (chmod 600), install your unit
+```
+
+The binary auto-discovers config at `./config/`, `/opt/arp-collect/config/`,
+and `/etc/arp-collect/`, so `-config` is optional when installed there.

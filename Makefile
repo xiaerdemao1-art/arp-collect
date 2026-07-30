@@ -7,7 +7,7 @@ BUILD_DIR=./bin
 GO=go
 
 # 版本信息
-VERSION?=0.0.1
+VERSION?=0.0.2
 BUILD_TIME=$(shell date +%FT%T%z)
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 

@@ -20,11 +20,26 @@ type Config struct {
 	Logging         LoggingConfig         `mapstructure:"logging"`
 	VictoriaMetrics VictoriaMetricsConfig `mapstructure:"victoria_metrics"`
 
+	// DeviceSource 设备清单来源（netbox | file），缺省 netbox
+	DeviceSource DeviceSourceConfig `mapstructure:"device_source"`
+
 	// ProxyMappings region/site/role 到 proxy 的映射规则
 	// 数组顺序即优先级：靠前的规则先匹配
 	ProxyMappings []ProxyMappingConfig `mapstructure:"proxy_mappings"`
 	// DefaultProxy 没有任何规则命中时使用的 proxy 名称
 	DefaultProxy string `mapstructure:"default_proxy"`
+}
+
+// DeviceSourceConfig 设备清单来源配置
+type DeviceSourceConfig struct {
+	Type string           `mapstructure:"type"` // netbox | file（空=netbox）
+	File FileSourceConfig `mapstructure:"file"`
+}
+
+// FileSourceConfig 文件型设备源配置
+type FileSourceConfig struct {
+	Path   string `mapstructure:"path"`   // 设备清单文件路径（.yaml/.yml 或 .csv）
+	Format string `mapstructure:"format"` // yaml | csv，空=按扩展名推断
 }
 
 // NetBoxConfig NetBox API 配置
@@ -145,7 +160,8 @@ func Load(configPath string) (*Config, error) {
 		v.SetConfigName("config")
 		v.SetConfigType("yaml")
 		v.AddConfigPath("./config")
-		v.AddConfigPath("/etc/arp_collect")
+		v.AddConfigPath("/opt/arp-collect/config") // install.sh 默认布局
+		v.AddConfigPath("/etc/arp-collect")        // 系统级配置目录
 	}
 
 	// 环境变量覆盖
@@ -187,11 +203,21 @@ func (c *Config) Validate() error {
 
 	switch mode {
 	case "server", "standalone":
-		if c.NetBox.URL == "" {
-			return fmt.Errorf("缺少必填配置 netbox.url")
-		}
-		if c.NetBox.Token == "" {
-			return fmt.Errorf("缺少必填配置 netbox.token（可通过配置文件或 ARP_NETBOX_TOKEN 环境变量设置）")
+		// 设备源校验：netbox 需要 url+token；file 需要 path
+		switch c.DeviceSource.Type {
+		case "", "netbox":
+			if c.NetBox.URL == "" {
+				return fmt.Errorf("缺少必填配置 netbox.url")
+			}
+			if c.NetBox.Token == "" {
+				return fmt.Errorf("缺少必填配置 netbox.token（可通过配置文件或 ARP_NETBOX_TOKEN 环境变量设置）")
+			}
+		case "file":
+			if c.DeviceSource.File.Path == "" {
+				return fmt.Errorf("device_source.type=file 但未设置 device_source.file.path")
+			}
+		default:
+			return fmt.Errorf("未知 device_source.type %q（可选: netbox | file）", c.DeviceSource.Type)
 		}
 		if c.Postgres.Password == "" {
 			return fmt.Errorf("缺少必填配置 postgres.password（可通过配置文件或 ARP_POSTGRES_PASSWORD 环境变量设置）")
@@ -219,6 +245,9 @@ func (c *Config) Validate() error {
 }
 
 func setDefaults(v *viper.Viper) {
+	// 设备源（缺省 netbox）
+	v.SetDefault("device_source.type", "netbox")
+
 	// NetBox
 	v.SetDefault("netbox.url", "http://localhost:8000")
 	v.SetDefault("netbox.token", "")
