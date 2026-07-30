@@ -1,0 +1,28 @@
+[Unit]
+Description=ARP Collector Agent
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 建议使用非 root 用户运行（SNMP 采集不需要特权）
+# Run as a dedicated non-root user:
+#   sudo useradd -r -s /sbin/nologin arp
+#   sudo mkdir -p /opt/arp-collect && sudo chown -R arp:arp /opt/arp-collect
+User=arp
+Group=arp
+# 可选：通过环境文件注入秘密（如 ARP_COLLECTOR_AUTHTOKEN）
+# Optional: inject secrets via an environment file (chmod 600, owned by arp)
+EnvironmentFile=-/etc/arp-collect/env
+# 按实际修改 -proxy 名称与 -server 地址
+# Adjust -proxy name and -server URL for your deployment
+ExecStart=/opt/arp-collect/bin/arp_collector -config /opt/arp-collect/config/config.yaml -mode collector -server http://server.example.com:19527 -proxy PROXY_NAME
+Restart=always
+RestartSec=30
+# 日志输出到 journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arp-collector
+
+[Install]
+WantedBy=multi-user.target

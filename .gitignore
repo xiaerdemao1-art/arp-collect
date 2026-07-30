@@ -1,0 +1,38 @@
+# Binaries / build output
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Real configuration - NEVER commit. Use config/config.example.yaml as template.
+config/config.yaml
+config/*.local.yaml
+.env
+*.env
+
+# Real proxy inventory - use deploy/proxies.txt.example as template.
+deploy/proxies.txt
+deploy/proxy_configs/
+
+# Frontend
+web/node_modules/
+# NOTE: internal/server/web/dist/ IS committed on purpose (go:embed needs it,
+# so users can `go build` without Node.js). Rebuild it with:
+#   cd web && npm ci && npm run build
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go
+*.test
+*.out
+coverage.html

@@ -1,0 +1,26 @@
+[Unit]
+Description=ARP Collect Server
+After=network.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 建议使用非 root 用户运行 / Run as a dedicated non-root user:
+#   sudo useradd -r -s /sbin/nologin arp
+#   sudo mkdir -p /opt/arp-collect && sudo chown -R arp:arp /opt/arp-collect
+User=arp
+Group=arp
+WorkingDirectory=/opt/arp-collect
+# 可选：通过环境文件注入秘密（推荐，避免写在命令行/配置里）
+# Optional: inject secrets via an environment file (chmod 600, owned by arp)
+EnvironmentFile=-/etc/arp-collect/env
+ExecStart=/opt/arp-collect/bin/arp_server -config /opt/arp-collect/config/config.yaml
+Restart=always
+RestartSec=5
+# 日志输出到 journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arp-server
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+# proxies.txt - Proxy 节点清单（每行: 名称 IP）
+# Proxy node list (one per line: name ip)
+# 用法 / Usage: cp proxies.txt.example proxies.txt 然后改成你的节点
+proxy1 192.0.2.11
+proxy2 192.0.2.12
