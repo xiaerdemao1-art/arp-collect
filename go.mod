@@ -7,7 +7,7 @@ toolchain go1.24.12
 require (
 	github.com/gosnmp/gosnmp v1.37.0
 	github.com/jackc/pgx/v5 v5.5.0
-	github.com/segmentio/kafka-go v0.4.50
+	github.com/segmentio/kafka-go v0.4.51
 	github.com/spf13/viper v1.18.2
 	go.uber.org/zap v1.26.0
 )
