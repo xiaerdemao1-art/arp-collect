@@ -9,7 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.5.0
 	github.com/segmentio/kafka-go v0.4.50
 	github.com/spf13/viper v1.18.2
-	go.uber.org/zap v1.26.0
+	go.uber.org/zap v1.28.0
 )
 
 require (
