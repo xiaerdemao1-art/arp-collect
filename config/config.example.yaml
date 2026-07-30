@@ -1,0 +1,135 @@
+# =============================================================================
+# ARP Collect 配置文件示例 / Configuration Example
+#
+# 用法 / Usage:
+#   1. cp config/config.example.yaml config/config.yaml
+#   2. 填入你的实际地址与凭据 / Fill in your real endpoints and credentials
+#   3. config/config.yaml 已在 .gitignore 中，不会被提交 / git-ignored by default
+#
+# 所有秘密字段都支持 ${ENV_VAR} 语法，推荐用环境变量注入：
+# All secret fields support ${ENV_VAR} expansion (recommended):
+#   token: "${ARP_NETBOX_TOKEN}"
+# 也可用 ARP_ 前缀的环境变量直接覆盖任意配置项（viper AutomaticEnv），例如：
+# Any key can also be overridden via ARP_-prefixed env vars, e.g.:
+#   ARP_POSTGRES_PASSWORD=xxx ARP_SERVER_AUTHTOKEN=yyy
+# =============================================================================
+
+netbox:
+  url: "http://192.0.2.10:8000"      # NetBox API 地址 / NetBox API URL
+  token: "${ARP_NETBOX_TOKEN}"       # NetBox API Token
+  roles:                              # 采集哪些角色的设备 / Device roles to collect
+    - "CoreSwitch"
+    - "DistributionSwitch"
+
+snmp:
+  community: "${ARP_SNMP_COMMUNITY}" # SNMP v2c community
+  timeout: "30s"        # 超时时间（大型 ARP 表需要更长时间）/ Timeout (large ARP tables need longer)
+  retries: 2            # 重试次数 / Retries
+  bulk_repetitions: 50  # BulkWalk 每次获取的条目数 / BulkWalk repetitions
+  max_concurrency: 20   # 最大并发采集数 / Max concurrent collections
+
+postgres:
+  host: "192.0.2.20"
+  port: 5432
+  user: "postgres"
+  password: "${ARP_POSTGRES_PASSWORD}"
+  database: "postgres"
+  max_connections: 10
+
+# Kafka 输出（可选，默认禁用）/ Kafka output (optional, disabled by default)
+kafka:
+  enabled: false
+  brokers:
+    - "192.0.2.30:9092"
+  topic: "arp_collect"
+  username: ""                       # 留空则不启用 SASL / Empty = no SASL auth
+  password: ""
+  compression: "lz4"                 # none / gzip / snappy / lz4 / zstd
+  batch_size: 5000
+  batch_timeout: 1                   # 秒 / seconds
+  async: false
+  tls: false
+
+server:
+  listen: ":19527"  # Server 监听端口 / Listen address
+  # 运行模式 / Run mode:
+  # - standalone: 单机模式，直接连 NetBox/PG（适合测试）/ All-in-one, direct NetBox+PG
+  # - server:     服务端模式，提供 API 给 Collector / Central server mode
+  # - collector:  采集器模式，从 Server 获取任务并回传结果 / Agent mode
+  mode: "standalone"
+
+  # Collector API 认证 Token（预共享密钥）/ Pre-shared token for Collector API
+  auth_token: "${ARP_SERVER_AUTHTOKEN}"
+
+  # Web UI Basic Auth / Web UI authentication
+  web_auth:
+    enabled: true
+    username: "admin"
+    password: "${ARP_SERVER_WEBAUTH_PASSWORD}"
+
+  # 允许连接的 Proxy 列表（hostname+IP 校验，类似 Zabbix）
+  # Allowed collector proxies (name + optional IP pinning)
+  allowed_proxies:
+    - name: "proxy1"
+      ip: "192.0.2.11"
+    - name: "proxy2"
+      ip: "192.0.2.12"
+
+# Proxy 分配规则：数组顺序即优先级，命中的第一条规则生效
+# Proxy assignment rules: first match wins (top to bottom)
+# 匹配优先级：sites > regions(L2) > regions(L1) > default_proxy
+proxy_mappings:
+  - proxy: "proxy1"
+    sites:
+      - "DC-East"              # 站点名子串匹配 / Site name substring match
+    regions:
+      - "Region-East"          # Region 名子串匹配 / Region substring match
+  - proxy: "proxy2"
+    roles:
+      - "WirelessAC"           # 设备角色精确匹配 / Exact device-role match
+    regions:
+      - "Region-West"
+
+# 没有任何规则命中时使用的 proxy / Fallback proxy when no rule matches
+default_proxy: "proxy1"
+
+collector:
+  # 当前采集节点名称，需与 proxy_mappings / allowed_proxies 对应
+  # This node's name; must match proxy_mappings / allowed_proxies
+  proxy_name: "proxy1"
+
+  # Server API 地址（仅 collector 模式使用）/ Server API URL (collector mode only)
+  server_url: "http://192.0.2.40:19527"
+
+  # 认证 Token（需与 Server 端 server.auth_token 一致）/ Must match server.auth_token
+  auth_token: "${ARP_COLLECTOR_AUTHTOKEN}"
+
+  # 采集周期 / Collection interval
+  interval: "10m"
+
+  # 设备列表刷新周期 / Device list refresh interval
+  device_refresh: "1h"
+
+  # 单次运行模式（运行一次后退出）/ Run once and exit
+  single_run: false
+
+  # 慢速采集设备列表（ARP 条目数多的设备，用更长周期降低 CPU 负载）
+  # Slow devices with large ARP tables get their own longer interval
+  slow_devices:
+    - ip: "192.0.2.1"
+      name: "EXAMPLE_CORE_SW_01"   # ~15000 ARP 条目 / entries
+      interval: "20m"
+    # - ip: "192.0.2.2"
+    #   name: "EXAMPLE_CORE_SW_02"
+    #   interval: "30m"
+
+logging:
+  level: "info"
+  file: ""  # 留空输出到 stdout / Empty = stdout
+
+# VictoriaMetrics 指标推送（可选，默认禁用）/ Metrics push (optional, disabled by default)
+victoria_metrics:
+  enabled: false
+  url: "http://192.0.2.50:8428/api/v1/import/prometheus"
+  user: ""
+  password: ""
