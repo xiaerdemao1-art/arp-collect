@@ -139,7 +139,7 @@ cd web && npm ci && npm run build   # 输出到 internal/server/web/dist
 - `arp_snapshot_current` —— 每设备一行：元数据、最近一次采集状态/条目数/耗时
 - `arp_entry_current` —— 每个 `(device_name, ip, mac)` 三元组一行：接口、类型、`created_at`（首次发现）、`collected_at`（最近采集）
 
-常用分析查询（IP 冲突、漂移追踪、多网关检测）见 [docs/migration/v1.0.7.md](docs/migration/v1.0.7.md)。
+常用分析查询（IP 冲突、漂移追踪、多网关检测）见 [docs/queries.md](docs/queries.md)。
 
 ## 已知限制 / Roadmap
 

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.1] - 2026-07-30
 
-Initial open-source release (sanitized from an internal project).
+Initial release.
 
 ### Added
 
@@ -19,21 +19,15 @@ Initial open-source release (sanitized from an internal project).
 - Optional Kafka and VictoriaMetrics outputs (disabled by default)
 - Embedded React Web UI (dashboard + unified ARP search + CSV export)
 - `config.example.yaml` with `${ENV_VAR}` secret expansion and bilingual comments
-- Startup config validation (`Validate()`) — refuses to run with missing secrets
+- Startup config validation (`Validate()`) - refuses to run with missing secrets
 - Web UI Basic Auth via `server.web_auth` config (constant-time comparison)
 - systemd unit templates, batch deploy script, and unit generator in `deploy/`
 - Smoke tests for config loading, validation, and proxy mapping
 
 ### Security
 
-- Removed all hardcoded credentials and internal endpoints from code, config,
-  and documentation; secrets are only read from config files or env vars
-
-### Pre-open-source history
-
-Developed internally from 2026-01 to 2026-02 (v0.0.0 – v1.0.7). The most
-significant internal change was the v1.0.7 primary-key migration
-`(device_name, ip)` → `(device_name, ip, mac)`; its migration guide is
-preserved at [docs/migration/v1.0.7.md](docs/migration/v1.0.7.md).
+- No hardcoded credentials in code, config, or documentation; secrets are
+  only read from config files or env vars, and startup validation refuses to
+  run when required secrets are missing
 
 [0.0.1]: https://github.com/xiaerdemao1-art/arp-collect/releases/tag/v0.0.1

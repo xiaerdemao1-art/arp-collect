@@ -142,7 +142,7 @@ The repository intentionally commits `internal/server/web/dist` so users can `go
 - `arp_snapshot_current` — one row per device: metadata, last collection status/count/duration
 - `arp_entry_current` — one row per `(device_name, ip, mac)` triple: interface, type, `created_at` (first seen), `collected_at` (last seen)
 
-Useful queries (IP conflicts, drift tracking, multi-gateway detection) are documented in [docs/migration/v1.0.7.md](docs/migration/v1.0.7.md).
+Useful queries (IP conflicts, drift tracking, multi-gateway detection) are documented in [docs/queries.md](docs/queries.md).
 
 ## Known Limitations / Roadmap
 
