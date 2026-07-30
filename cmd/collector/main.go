@@ -33,7 +33,7 @@ var (
 
 // 版本信息（由 Makefile 通过 -ldflags -X 注入）
 var (
-	version   = "0.0.2"
+	version   = "0.0.3"
 	buildTime = "unknown"
 	gitCommit = "unknown"
 )
@@ -128,18 +128,19 @@ func runDistributedCollector(ctx context.Context, cfg *config.Config, logger *za
 func runStandaloneCollector(ctx context.Context, cfg *config.Config, logger *zap.Logger, singleDevice string) {
 	logger.Info("进入单机模式")
 
-	// 初始化设备源（netbox 或文件）和 SNMP 采集器
-	deviceSource, err := source.New(cfg, logger)
-	if err != nil {
-		logger.Fatal("初始化设备源失败", zap.Error(err))
-	}
-	snmpCollector := snmp.NewCollector(&cfg.SNMP, logger)
-
+	// 初始化 PostgreSQL（先于设备源，database 源需要它）
 	pgStore, err := storage.NewPostgresStore(&cfg.Postgres, logger)
 	if err != nil {
 		logger.Fatal("连接 PostgreSQL 失败", zap.Error(err))
 	}
 	defer pgStore.Close()
+
+	// 初始化设备源（netbox / file / database）和 SNMP 采集器
+	deviceSource, err := source.New(cfg, pgStore, logger)
+	if err != nil {
+		logger.Fatal("初始化设备源失败", zap.Error(err))
+	}
+	snmpCollector := snmp.NewCollector(&cfg.SNMP, logger)
 
 	// 获取设备列表
 	if _, err := deviceSource.FetchDevices(ctx, cfg.NetBox.Roles); err != nil {

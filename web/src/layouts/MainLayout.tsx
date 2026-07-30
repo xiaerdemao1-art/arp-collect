@@ -4,6 +4,7 @@ import { Layout, Menu, Typography, Badge, Select, Tooltip, ConfigProvider, theme
 import {
   DashboardOutlined,
   SearchOutlined,
+  ClusterOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
@@ -87,6 +88,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ onThemeChange }) => {
           key: '/arp',
           icon: <SearchOutlined />,
           label: 'ARP 检索',
+        },
+      ],
+    },
+    {
+      key: 'manage',
+      label: '管理',
+      type: 'group',
+      children: [
+        {
+          key: '/hosts',
+          icon: <ClusterOutlined />,
+          label: '主机管理',
         },
       ],
     },

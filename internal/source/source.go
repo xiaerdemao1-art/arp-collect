@@ -10,6 +10,7 @@ import (
 	"github.com/xiaerdemao1-art/arp-collect/internal/config"
 	"github.com/xiaerdemao1-art/arp-collect/internal/model"
 	"github.com/xiaerdemao1-art/arp-collect/internal/netbox"
+	"github.com/xiaerdemao1-art/arp-collect/internal/storage"
 
 	"go.uber.org/zap"
 )
@@ -27,13 +28,19 @@ type DeviceSource interface {
 }
 
 // New 按 cfg.DeviceSource.Type 创建设备源。
-func New(cfg *config.Config, logger *zap.Logger) (DeviceSource, error) {
+// store 用于 database 源（netbox/file 源可传 nil）。
+func New(cfg *config.Config, store *storage.PostgresStore, logger *zap.Logger) (DeviceSource, error) {
 	switch cfg.DeviceSource.Type {
 	case "", "netbox":
 		return netbox.NewClient(cfg, logger), nil
 	case "file":
 		return NewFileSource(cfg, logger), nil
+	case "database":
+		if store == nil {
+			return nil, fmt.Errorf("device_source.type=database 需要 PostgreSQL 存储")
+		}
+		return NewDatabaseSource(cfg, store, logger), nil
 	default:
-		return nil, fmt.Errorf("unknown device_source.type %q (netbox | file)", cfg.DeviceSource.Type)
+		return nil, fmt.Errorf("unknown device_source.type %q (netbox | file | database)", cfg.DeviceSource.Type)
 	}
 }

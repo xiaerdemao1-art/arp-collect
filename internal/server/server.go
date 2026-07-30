@@ -52,19 +52,19 @@ func NewServer(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		logger: logger,
 	}
 
-	// 初始化设备源（netbox 或文件）
-	ds, err := source.New(cfg, logger)
-	if err != nil {
-		return nil, fmt.Errorf("初始化设备源失败: %w", err)
-	}
-	s.deviceSource = ds
-
-	// 初始化 PostgreSQL
+	// 初始化 PostgreSQL（先于设备源，database 源需要它）
 	pgStore, err := storage.NewPostgresStore(&cfg.Postgres, logger)
 	if err != nil {
 		return nil, fmt.Errorf("连接 PostgreSQL 失败: %w", err)
 	}
 	s.pgStore = pgStore
+
+	// 初始化设备源（netbox / file / database）
+	ds, err := source.New(cfg, pgStore, logger)
+	if err != nil {
+		return nil, fmt.Errorf("初始化设备源失败: %w", err)
+	}
+	s.deviceSource = ds
 
 	// 初始化 Kafka（可选）
 	if cfg.Kafka.Enabled {
@@ -184,6 +184,14 @@ func (s *Server) startHTTPServer() {
 	mux.HandleFunc("/api/v1/arp/search", s.handleARPSearch)                  // ARP 搜索 API
 	mux.HandleFunc("/api/v1/stats", s.handleGetStats)                        // 统计信息
 	mux.HandleFunc("/health", s.handleHealth)                                // 健康检查
+
+	// 主机管理（Web 主机管理页使用，BasicAuth 鉴权）
+	mux.HandleFunc("GET /api/v1/hosts", s.basicAuthMiddleware(s.handleHosts))
+	mux.HandleFunc("POST /api/v1/hosts", s.basicAuthMiddleware(s.handleHosts))
+	mux.HandleFunc("PUT /api/v1/hosts/{id}", s.basicAuthMiddleware(s.handleHostByID))
+	mux.HandleFunc("DELETE /api/v1/hosts/{id}", s.basicAuthMiddleware(s.handleHostByID))
+	mux.HandleFunc("POST /api/v1/hosts/import", s.basicAuthMiddleware(s.handleImportHosts))
+	mux.HandleFunc("GET /api/v1/hosts/export", s.basicAuthMiddleware(s.handleExportHosts))
 
 	// React SPA 静态资源
 	distFS, err := fs.Sub(webFS, "web/dist")

@@ -53,7 +53,7 @@
 - **规则化任务分发** —— 按站点/区域/角色把设备分配给采集器（`proxy_mappings`）
 - **三元组主键** `(device_name, ip, mac)` —— 支持 IP 冲突检测、终端漂移追踪、多网关（VRRP/堆叠）场景完整记录；`created_at` 记录首次发现时间
 - **慢速设备调度** —— ARP 表巨大的设备可配置独立采集周期
-- **Web UI** —— 仪表盘 + 统一搜索（IP/MAC/设备名/Proxy 名智能识别），支持 CSV 导出
+- **Web UI** —— 仪表盘 + 统一搜索（IP/MAC/设备名/Proxy），CSV 导出；`database` 源支持主机管理页（手动增删改 + CSV 批量导入）
 - **可选输出** —— Kafka（每 ARP 记录一条消息）、VictoriaMetrics 指标（`arp_collect_device_arp_count`、`arp_collect_device_duration_ms`、`arp_collect_device_status`）
 - **静态编译** —— `CGO_ENABLED=0`，配合 systemd 极简部署
 
@@ -92,7 +92,7 @@ export ARP_SNMP_COMMUNITY=你的SNMP社区名
 
 见 [`config/config.example.yaml`](config/config.example.yaml)，每个选项都有中英双语注释。重点：
 
-- `device_source` - device inventory source: `netbox` (default) or `file` (local yaml/csv list, no NetBox needed; see `config/devices.example.yaml`)
+- `device_source` - 设备清单来源：`netbox`（默认）/ `file`（本地 yaml/csv）/ `database`（Web 主机管理页增删改）
 - `proxy_mappings` —— 有序规则，把 NetBox 站点/区域/角色映射到采集器（**先匹配先生效**），`default_proxy` 兜底
 - `server.allowed_proxies` —— 可选的采集器白名单，支持绑定 IP（类似 Zabbix）
 - `collector.slow_devices` —— 大 ARP 表设备的独立采集周期
@@ -152,7 +152,6 @@ cd web && npm ci && npm run build   # 输出到 internal/server/web/dist
 - 仅支持 SNMPv2c（暂不支持 SNMPv3）
 - Server API 仅 HTTP（如需暴露到可信网络之外，请用反向代理终止 TLS）
 - Kafka TLS 目前 `InsecureSkipVerify`（证书校验开关计划中）
-- Web 主机管理界面（手动增删改 + CSV 批量导入，类似 Zabbix）-- 计划中
 - 测试覆盖较少（仅冒烟测试）—— 欢迎贡献
 
 ## 贡献

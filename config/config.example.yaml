@@ -15,8 +15,9 @@
 # =============================================================================
 
 # 设备清单来源 / Device inventory source
-# type: netbox  - 从 NetBox API 拉取设备（需配置下方 netbox 段）
-# type: file    - 从本地 yaml/csv 文件读取设备（无需 NetBox，见 config/devices.example.yaml）
+# type: netbox    - 从 NetBox API 拉取设备（需配置下方 netbox 段）
+# type: file      - 从本地 yaml/csv 文件读取设备（无需 NetBox，见 config/devices.example.yaml）
+# type: database  - 从 PostgreSQL 的 arp_device 表读取（Web 主机管理页增删改，无需 NetBox）
 device_source:
   type: netbox
   # file:                                   # type=file 时启用

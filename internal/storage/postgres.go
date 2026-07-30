@@ -127,6 +127,21 @@ BEGIN
         ALTER TABLE arp_snapshot_current ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
     END IF;
 END $$;
+
+-- 手动管理的设备清单（device_source.type=database 时使用，Web 主机管理页增删改）
+CREATE TABLE IF NOT EXISTS arp_device (
+    id             SERIAL PRIMARY KEY,
+    name           TEXT NOT NULL UNIQUE,
+    ip             TEXT NOT NULL,
+    role           TEXT,
+    site           TEXT,
+    region         TEXT,
+    proxy          TEXT,
+    snmp_community TEXT,
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_arp_device_proxy ON arp_device(proxy);
 `
 
 	_, err := s.pool.Exec(ctx, schema)

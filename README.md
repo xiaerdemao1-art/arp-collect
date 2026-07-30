@@ -54,7 +54,7 @@ Three run modes:
 - **Rule-based task distribution** — assign devices to collectors by site / region / role (`proxy_mappings`)
 - **Smart primary key** `(device_name, ip, mac)` — enables IP-conflict detection, endpoint drift tracking, and multi-gateway (VRRP/stack) visibility; `created_at` records first-seen time
 - **Slow-device scheduling** — devices with huge ARP tables can run on their own longer interval
-- **Web UI** — dashboard + unified ARP search (IP / MAC / device / proxy), CSV export
+- **Web UI** — dashboard + unified ARP search (IP / MAC / device / proxy), CSV export, and a host-management page (manual CRUD + CSV batch import) for the `database` device source
 - **Optional outputs** — Kafka topic per ARP record; VictoriaMetrics metrics (`arp_collect_device_arp_count`, `arp_collect_device_duration_ms`, `arp_collect_device_status`)
 - **Static binaries** — `CGO_ENABLED=0`, trivial to deploy with systemd
 
@@ -95,7 +95,7 @@ Open `http://localhost:19527` and log in with the `server.web_auth` credentials.
 
 See [`config/config.example.yaml`](config/config.example.yaml) — every option is commented in both English and Chinese. Highlights:
 
-- `device_source` - device inventory source: `netbox` (default) or `file` (local yaml/csv list, no NetBox needed; see `config/devices.example.yaml`)
+- `device_source` - device inventory source: `netbox` (default) / `file` (local yaml/csv) / `database` (managed via Web UI host-management page)
 - `proxy_mappings` — ordered rules mapping NetBox site/region/role → collector name (`first match wins`), with `default_proxy` as fallback
 - `server.allowed_proxies` — optional collector allowlist with IP pinning (Zabbix-style)
 - `collector.slow_devices` — per-device collection intervals for large ARP tables
@@ -155,7 +155,6 @@ Useful queries (IP conflicts, drift tracking, multi-gateway detection) are docum
 - SNMPv2c only (no SNMPv3 yet)
 - HTTP-only server API (terminate TLS at a reverse proxy if exposed beyond a trusted network)
 - Kafka TLS uses `InsecureSkipVerify` (verification toggle planned)
-- Web host management UI (manual add/edit + CSV batch import, Zabbix-style) - planned
 - Test coverage is minimal (smoke tests only) — contributions welcome
 
 ## Contributing

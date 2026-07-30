@@ -216,8 +216,10 @@ func (c *Config) Validate() error {
 			if c.DeviceSource.File.Path == "" {
 				return fmt.Errorf("device_source.type=file 但未设置 device_source.file.path")
 			}
+		case "database":
+			// 设备来自 arp_device 表（Web 主机管理），无需 NetBox；PG 已在下方校验
 		default:
-			return fmt.Errorf("未知 device_source.type %q（可选: netbox | file）", c.DeviceSource.Type)
+			return fmt.Errorf("未知 device_source.type %q（可选: netbox | file | database）", c.DeviceSource.Type)
 		}
 		if c.Postgres.Password == "" {
 			return fmt.Errorf("缺少必填配置 postgres.password（可通过配置文件或 ARP_POSTGRES_PASSWORD 环境变量设置）")
