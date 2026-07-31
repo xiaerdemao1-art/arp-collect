@@ -8,10 +8,60 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xiaerdemao1-art/arp-collect/internal/model"
 	"github.com/xiaerdemao1-art/arp-collect/internal/storage"
 
 	"go.uber.org/zap"
 )
+
+// snmpTestSampleLimit Web 端 SNMP 测试最多采样的 ARP 条目数
+const snmpTestSampleLimit = 50
+
+// handleSNMPTest POST /api/v1/snmp/test
+// 请求体: {"ip":"...","community":"...","name":"..."}（community/name 可选）
+// 对目标设备执行一次限量 SNMP 采集，返回状态/条目数/耗时/采样。
+func (s *Server) handleSNMPTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		IP        string `json:"ip"`
+		Community string `json:"community"`
+		Name      string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.IP == "" {
+		http.Error(w, "ip is required", http.StatusBadRequest)
+		return
+	}
+
+	device := model.Device{
+		Name:          req.Name,
+		PrimaryIP:     req.IP,
+		SNMPCommunity: req.Community,
+	}
+
+	result, truncated := s.snmpCollector.CollectDeviceSample(device, snmpTestSampleLimit)
+
+	s.logger.Info("SNMP 测试",
+		zap.String("ip", req.IP),
+		zap.String("status", result.Status),
+		zap.Int("arp_count", result.ARPCount),
+		zap.Int64("duration_ms", result.DurationMs))
+
+	writeJSON(w, map[string]interface{}{
+		"status":      result.Status,
+		"arp_count":   result.ARPCount,
+		"duration_ms": result.DurationMs,
+		"error":       result.Error,
+		"truncated":   truncated,
+		"sample":      result.Entries,
+	})
+}
 
 // handleHosts GET 列出 / POST 新建
 func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {

@@ -55,6 +55,7 @@ Three run modes:
 - **Smart primary key** `(device_name, ip, mac)` — enables IP-conflict detection, endpoint drift tracking, and multi-gateway (VRRP/stack) visibility; `created_at` records first-seen time
 - **Slow-device scheduling** — devices with huge ARP tables can run on their own longer interval
 - **Web UI** — dashboard + unified ARP search (IP / MAC / device / proxy), CSV export, and a host-management page (manual CRUD + CSV batch import) for the `database` device source
+- **SNMP test** - test SNMPv2c reachability and ARP collection against any device from the Web UI (per-host button or ad-hoc page); runs a limited sample, no DB writes
 - **Optional outputs** — Kafka topic per ARP record; VictoriaMetrics metrics (`arp_collect_device_arp_count`, `arp_collect_device_duration_ms`, `arp_collect_device_status`)
 - **Static binaries** — `CGO_ENABLED=0`, trivial to deploy with systemd
 

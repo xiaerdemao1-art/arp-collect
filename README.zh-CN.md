@@ -54,6 +54,7 @@
 - **三元组主键** `(device_name, ip, mac)` —— 支持 IP 冲突检测、终端漂移追踪、多网关（VRRP/堆叠）场景完整记录；`created_at` 记录首次发现时间
 - **慢速设备调度** —— ARP 表巨大的设备可配置独立采集周期
 - **Web UI** —— 仪表盘 + 统一搜索（IP/MAC/设备名/Proxy），CSV 导出；`database` 源支持主机管理页（手动增删改 + CSV 批量导入）
+- **SNMP 测试** -- 在 Web UI 对任意设备测试 SNMPv2c 连通性与 ARP 采集（主机行按钮或独立测试页），限量采样，不写库
 - **可选输出** —— Kafka（每 ARP 记录一条消息）、VictoriaMetrics 指标（`arp_collect_device_arp_count`、`arp_collect_device_duration_ms`、`arp_collect_device_status`）
 - **静态编译** —— `CGO_ENABLED=0`，配合 systemd 极简部署
 

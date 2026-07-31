@@ -20,6 +20,7 @@ import {
   ImportOutlined,
   ExportOutlined,
   UploadOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadProps } from 'antd';
@@ -47,6 +48,9 @@ const Hosts: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Host>(emptyHost);
   const [importOpen, setImportOpen] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testOpen, setTestOpen] = useState(false);
+  const [testingId, setTestingId] = useState<number | null>(null);
   const [form] = Form.useForm();
 
   const fetchHosts = async () => {
@@ -106,6 +110,24 @@ const Hosts: React.FC = () => {
     fetchHosts();
   };
 
+  const testHost = async (h: Host) => {
+    setTestingId(h.id);
+    setTestOpen(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/v1/snmp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: h.ip, community: h.snmp_community, name: h.name }),
+      });
+      setTestResult(await res.json());
+    } catch {
+      message.error('请求失败');
+    } finally {
+      setTestingId(null);
+    }
+  };
+
   const exportCSV = async () => {
     try {
       const res = await fetch('/api/v1/hosts/export');
@@ -163,9 +185,10 @@ const Hosts: React.FC = () => {
       render: (v: string) => v || <Text type="secondary">默认</Text>,
     },
     {
-      title: '操作', key: 'action', width: 120,
+      title: '操作', key: 'action', width: 170,
       render: (_, h) => (
         <Space>
+          <Button size="small" icon={<ExperimentOutlined />} onClick={() => testHost(h)} loading={testingId === h.id}>测试</Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(h)} />
           <Popconfirm title={`删除 ${h.name}？`} onConfirm={() => del(h.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
@@ -240,6 +263,48 @@ const Hosts: React.FC = () => {
           CSV 格式：首行表头 <code>name,ip,role,site,region,proxy,snmp_community</code>，
           按名称去重，已存在则更新。可先"导出 CSV"作为模板。
         </Text>
+      </Modal>
+
+      {/* SNMP 测试结果弹窗 */}
+      <Modal
+        title="SNMP 测试结果"
+        open={testOpen}
+        onCancel={() => setTestOpen(false)}
+        footer={[
+          <Button key="close" onClick={() => setTestOpen(false)}>关闭</Button>,
+        ]}
+        width={720}
+      >
+        {testResult ? (
+          <>
+            <Space style={{ marginBottom: 16 }}>
+              <Text>状态：</Text>
+              {testResult.status === 'success'
+                ? <Tag color="green">成功</Tag>
+                : <Tag color="red">失败</Tag>}
+              <Text>ARP 条目：<b>{testResult.arp_count}</b>{testResult.truncated ? '（已截断，仅采样）' : ''}</Text>
+              <Text>耗时：<b>{testResult.duration_ms} ms</b></Text>
+            </Space>
+            {testResult.error && (
+              <p style={{ color: 'red' }}>错误：{testResult.error}</p>
+            )}
+            {testResult.sample && testResult.sample.length > 0 && (
+              <Table
+                columns={[
+                  { title: 'IP', dataIndex: 'ip', key: 'ip' },
+                  { title: 'MAC', dataIndex: 'mac', key: 'mac' },
+                  { title: '接口', dataIndex: 'interface', key: 'interface' },
+                ]}
+                dataSource={testResult.sample}
+                rowKey={(r: any) => r.ip + r.mac}
+                size="small"
+                pagination={{ pageSize: 10 }}
+              />
+            )}
+          </>
+        ) : (
+          <Text type="secondary">采集中…</Text>
+        )}
       </Modal>
     </div>
   );

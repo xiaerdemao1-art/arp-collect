@@ -1,6 +1,7 @@
 package snmp
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -14,6 +15,9 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"go.uber.org/zap"
 )
+
+// errSampleLimit 采样达到上限时终止 BulkWalk 的哨兵错误
+var errSampleLimit = errors.New("sample limit reached")
 
 // OID 定义
 const (
@@ -95,8 +99,8 @@ func (c *Collector) CollectDevice(device model.Device) model.CollectResult {
 		ifNameMap = make(map[string]string)
 	}
 
-	// 2. 获取 ARP 表
-	entries, err := c.fetchARPTable(snmp, ifNameMap)
+	// 2. 获取 ARP 表（limit=0 表示不限制）
+	entries, _, err := c.fetchARPTable(snmp, ifNameMap, 0)
 	if err != nil {
 		result.Error = fmt.Sprintf("获取 ARP 表失败: %v", err)
 		result.DurationMs = time.Since(start).Milliseconds()
@@ -115,6 +119,63 @@ func (c *Collector) CollectDevice(device model.Device) model.CollectResult {
 		zap.Int64("duration_ms", result.DurationMs))
 
 	return result
+}
+
+// CollectDeviceSample 采集设备 ARP 表的采样（最多 limit 条），用于 Web 端 SNMP 测试。
+// 比 CollectDevice 快：达到 limit 即停止 BulkWalk，足以验证连通性与采集能力。
+// 返回采集结果与是否因达到 limit 而截断的标志。
+func (c *Collector) CollectDeviceSample(device model.Device, limit int) (model.CollectResult, bool) {
+	start := time.Now()
+	result := model.CollectResult{
+		DeviceID:    device.ID,
+		DeviceName:  device.Name,
+		MgmtIP:      device.PrimaryIP,
+		CollectedAt: start,
+		Status:      "fail",
+	}
+
+	c.semaphore <- struct{}{}
+	defer func() { <-c.semaphore }()
+
+	community := c.cfg.Community
+	if device.SNMPCommunity != "" {
+		community = device.SNMPCommunity
+	}
+
+	snmp := &gosnmp.GoSNMP{
+		Target:         device.PrimaryIP,
+		Port:           161,
+		Community:      community,
+		Version:        gosnmp.Version2c,
+		Timeout:        c.cfg.Timeout,
+		Retries:        c.cfg.Retries,
+		MaxRepetitions: c.cfg.BulkRepetitions,
+	}
+
+	if err := snmp.Connect(); err != nil {
+		result.Error = fmt.Sprintf("SNMP 连接失败: %v", err)
+		result.DurationMs = time.Since(start).Milliseconds()
+		return result, false
+	}
+	defer snmp.Conn.Close()
+
+	ifNameMap, err := c.fetchIfNameMap(snmp)
+	if err != nil {
+		ifNameMap = make(map[string]string)
+	}
+
+	entries, truncated, err := c.fetchARPTable(snmp, ifNameMap, limit)
+	if err != nil {
+		result.Error = fmt.Sprintf("获取 ARP 表失败: %v", err)
+		result.DurationMs = time.Since(start).Milliseconds()
+		return result, false
+	}
+
+	result.Entries = entries
+	result.ARPCount = len(entries)
+	result.Status = "success"
+	result.DurationMs = time.Since(start).Milliseconds()
+	return result, truncated
 }
 
 // CollectDevices 并发采集多台设备
@@ -165,8 +226,9 @@ func (c *Collector) fetchIfNameMap(snmp *gosnmp.GoSNMP) (map[string]string, erro
 	return result, nil
 }
 
-// fetchARPTable 获取 ARP 表
-func (c *Collector) fetchARPTable(snmp *gosnmp.GoSNMP, ifNameMap map[string]string) ([]model.ARPEntry, error) {
+// fetchARPTable 获取 ARP 表。limit>0 时只取前 limit 条（用于 Web SNMP 测试快速采样）。
+// 返回 entries、是否因达到 limit 而截断、错误。
+func (c *Collector) fetchARPTable(snmp *gosnmp.GoSNMP, ifNameMap map[string]string, limit int) ([]model.ARPEntry, bool, error) {
 	var entries []model.ARPEntry
 
 	err := snmp.BulkWalk(OidArpMac, func(pdu gosnmp.SnmpPDU) error {
@@ -198,14 +260,17 @@ func (c *Collector) fetchARPTable(snmp *gosnmp.GoSNMP, ifNameMap map[string]stri
 			Type:      "dynamic",
 		})
 
+		if limit > 0 && len(entries) >= limit {
+			return errSampleLimit
+		}
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
+	if err != nil && !errors.Is(err, errSampleLimit) {
+		return nil, false, err
 	}
 
-	return entries, nil
+	return entries, errors.Is(err, errSampleLimit), nil
 }
 
 // parseARPIndex 从 OID 解析 ifIndex 和 IP

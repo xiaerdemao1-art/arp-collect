@@ -17,6 +17,7 @@ import (
 	"github.com/xiaerdemao1-art/arp-collect/internal/kafka"
 	"github.com/xiaerdemao1-art/arp-collect/internal/metrics"
 	"github.com/xiaerdemao1-art/arp-collect/internal/model"
+	"github.com/xiaerdemao1-art/arp-collect/internal/snmp"
 	"github.com/xiaerdemao1-art/arp-collect/internal/source"
 	"github.com/xiaerdemao1-art/arp-collect/internal/storage"
 
@@ -33,6 +34,7 @@ type Server struct {
 	deviceSource  source.DeviceSource
 	pgStore       *storage.PostgresStore
 	kafkaProducer *kafka.Producer
+	snmpCollector *snmp.Collector // Web 端 SNMP 测试用
 
 	// 指标推送
 	metricsPusher *metrics.VictoriaMetricsPusher
@@ -65,6 +67,9 @@ func NewServer(cfg *config.Config, logger *zap.Logger) (*Server, error) {
 		return nil, fmt.Errorf("初始化设备源失败: %w", err)
 	}
 	s.deviceSource = ds
+
+	// SNMP 采集器（Web 端 SNMP 测试用）
+	s.snmpCollector = snmp.NewCollector(&cfg.SNMP, logger)
 
 	// 初始化 Kafka（可选）
 	if cfg.Kafka.Enabled {
@@ -192,6 +197,7 @@ func (s *Server) startHTTPServer() {
 	mux.HandleFunc("DELETE /api/v1/hosts/{id}", s.basicAuthMiddleware(s.handleHostByID))
 	mux.HandleFunc("POST /api/v1/hosts/import", s.basicAuthMiddleware(s.handleImportHosts))
 	mux.HandleFunc("GET /api/v1/hosts/export", s.basicAuthMiddleware(s.handleExportHosts))
+	mux.HandleFunc("POST /api/v1/snmp/test", s.basicAuthMiddleware(s.handleSNMPTest))
 
 	// React SPA 静态资源
 	distFS, err := fs.Sub(webFS, "web/dist")
