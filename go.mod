@@ -1,11 +1,11 @@
 module github.com/xiaerdemao1-art/arp-collect
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.12
 
 require (
-	github.com/gosnmp/gosnmp v1.37.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/jackc/pgx/v5 v5.5.0
 	github.com/segmentio/kafka-go v0.4.50
 	github.com/spf13/viper v1.18.2
